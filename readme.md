@@ -1,6 +1,11 @@
 # media-status
 
-* Currently has spotify hardcoded (:
+(this is my first rust project, please be gentle)
+
+run via `~/.cargo/bin/media-status spotify` (replace the path/player name as necessary, etc and so forth). 
+
+preliminary support for [mpris-integration](https://github.com/jsmnbom/mpris-integration/) in firefox.
+
 * Only handles title, album, and artist.
 * Uses dbus PropertiesChanged to efficiently wait for property updates
 * Could probably handle progress-percentage stuff if spotify exported that :(

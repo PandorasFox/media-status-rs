@@ -78,10 +78,11 @@ use std::time::Duration;
 fn main() ->  Result<(), Box<dyn Error>> {
     #[cfg(feature = "timing")]
     let init = std::time::SystemTime::now();
+    let args: Vec<String> = std::env::args().collect();
+    let playername = &args[1];
     
     let mut c = Connection::new_session()?;
-    // could replace 'spotify' with any mediaplayer name passed via cli, probably
-    let proxy = c.with_proxy("org.mpris.MediaPlayer2.spotify", "/org/mpris/MediaPlayer2", Duration::from_millis(5000));
+    let proxy = c.with_proxy("org.mpris.MediaPlayer2.".to_string() + playername, "/org/mpris/MediaPlayer2", Duration::from_millis(5000));
     let playback_status: String = proxy.get("org.mpris.MediaPlayer2.Player", "PlaybackStatus")?;
     // xesam:album and xesam:title are always at least "" with spotify
     // xesam:artist is always at least [""] with spotify
@@ -100,8 +101,8 @@ fn main() ->  Result<(), Box<dyn Error>> {
     
     output(&playback_status,
            title.unwrap(),
-           artist.unwrap(),
-           album.unwrap()
+           artist.unwrap_or("Unknown Artist".to_string()),
+           album.unwrap_or("Unknown Album".to_string())
     );
     
     #[cfg(feature = "timing")] {
@@ -141,7 +142,9 @@ fn main() ->  Result<(), Box<dyn Error>> {
                         let artist_value = metadata_iter.next().unwrap();
                         let mut artist_value_variant_iter = artist_value.as_iter().unwrap();
                         let mut artist_value_arr_iter = artist_value_variant_iter.next().unwrap().as_iter().unwrap();
-                        new_artist = artist_value_arr_iter.next().unwrap().as_str().unwrap_or("").to_string();
+                        if let Some(artist_str) = artist_value_arr_iter.next() {
+                            new_artist = artist_str.as_str().unwrap_or("Unknown Artist").to_string();
+                        }
                     } else if key.as_str().unwrap_or("") == "xesam:title" {
                         new_title = metadata_iter.next().unwrap().as_str().unwrap_or("").to_string();
                     } else if key.as_str().unwrap_or("") == "xesam:album" {
