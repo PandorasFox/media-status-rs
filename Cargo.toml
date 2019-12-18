@@ -1,0 +1,12 @@
+[package]
+name = "media-status"
+version = "0.1.0"
+authors = ["Cassandra Fox <cass@fox.mom>"]
+edition = "2018"
+
+[features]
+default = []
+timing = []
+
+[dependencies]
+dbus = "0.7.1"
