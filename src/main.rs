@@ -34,7 +34,7 @@ impl dbus::message::SignalArgs for OrgFreedesktopDBusPropertiesPropertiesChanged
 /* end generated code */
 
 #[inline]
-fn output(playback_status: &String, title: String, artist: String, album: String) {
+fn output(playback_status: &String, title: &String, artist: &String, album: &String) {
     // see https://github.com/rust-lang/rust/issues/46016 for why there's a single panic in main
     // when running in waybar (you can see if you launch waybar in your term)
     // outputting for waybar. sorry folks.
@@ -83,7 +83,7 @@ fn main() ->  Result<(), Box<dyn Error>> {
     
     let mut c = Connection::new_session()?;
     let proxy = c.with_proxy("org.mpris.MediaPlayer2.".to_string() + playername, "/org/mpris/MediaPlayer2", Duration::from_millis(5000));
-    let playback_status: String = proxy.get("org.mpris.MediaPlayer2.Player", "PlaybackStatus")?;
+    let mut playback_status: String = proxy.get("org.mpris.MediaPlayer2.Player", "PlaybackStatus")?;
     // xesam:album and xesam:title are always at least "" with spotify
     // xesam:artist is always at least [""] with spotify
     let metadata: HashMap<String, Variant<Box<dyn RefArg>>> = proxy.get("org.mpris.MediaPlayer2.Player", "Metadata")?;
@@ -93,17 +93,13 @@ fn main() ->  Result<(), Box<dyn Error>> {
 
     // .get is Option<Variant<Box<dyn RefArg>>>
     // refarg has to be .as_str'd for the title (and then unwrapped)
-    let title: Option<String> = uber_unwrap(metadata.get("xesam:title"));
+    let mut title: String = uber_unwrap(metadata.get("xesam:title")).unwrap_or("Unknown Track".to_string());
     // xesam:artist is always a list of artists. we only care about the first one.
-    let artist: Option<String> = uber_unwrap(metadata.get("xesam:artist"));
+    let mut artist: String = uber_unwrap(metadata.get("xesam:artist")).unwrap_or("Unknown Artist".to_string());
     // maybe feature-enable album stuff?
-    let album: Option<String> = uber_unwrap(metadata.get("xesam:album"));
+    let mut album: String = uber_unwrap(metadata.get("xesam:album")).unwrap_or("Unknown Album".to_string());
     
-    output(&playback_status,
-           title.unwrap(),
-           artist.unwrap_or("Unknown Artist".to_string()),
-           album.unwrap_or("Unknown Album".to_string())
-    );
+    output(&playback_status, &title, &artist, &album);
     
     #[cfg(feature = "timing")] {
         let print_time = init.elapsed().unwrap();
@@ -115,19 +111,15 @@ fn main() ->  Result<(), Box<dyn Error>> {
     }
     
     {
-        let _id = proxy.match_signal(|h: OrgFreedesktopDBusPropertiesPropertiesChanged, _: &Connection| {
+        let _id = proxy.match_signal(move |h: OrgFreedesktopDBusPropertiesPropertiesChanged, _: &Connection| {
             #[cfg(feature = "timing")]
             let wake_time = std::time::SystemTime::now();
             let maybe_playback_status = h.changed_properties.get("PlaybackStatus");
             let maybe_metadata = h.changed_properties.get("Metadata");
             // fortunately, metadata dict always has all values in it
-            let mut new_playback_status: String = "".to_string();
-            let mut new_title: String = "".to_string();
-            let mut new_artist: String = "".to_string();
-            let mut new_album: String = "".to_string();
             if maybe_playback_status.is_some() {
-                // yolo unwrap, wouldn't be in the dict otherwise
-                new_playback_status = uber_unwrap(maybe_playback_status).unwrap();
+                // yolo unwrap, wouldn't be in the dict otherwise I hope
+                playback_status = uber_unwrap(maybe_playback_status).unwrap();
             }
             if maybe_metadata.is_some() {
                 let mut metadata_iter = maybe_metadata.unwrap().0.as_iter().unwrap();
@@ -143,16 +135,16 @@ fn main() ->  Result<(), Box<dyn Error>> {
                         let mut artist_value_variant_iter = artist_value.as_iter().unwrap();
                         let mut artist_value_arr_iter = artist_value_variant_iter.next().unwrap().as_iter().unwrap();
                         if let Some(artist_str) = artist_value_arr_iter.next() {
-                            new_artist = artist_str.as_str().unwrap_or("Unknown Artist").to_string();
+                            artist = artist_str.as_str().unwrap_or("Unknown Artist").to_string();
                         }
                     } else if key.as_str().unwrap_or("") == "xesam:title" {
-                        new_title = metadata_iter.next().unwrap().as_str().unwrap_or("").to_string();
+                        title = metadata_iter.next().unwrap().as_str().unwrap_or("").to_string();
                     } else if key.as_str().unwrap_or("") == "xesam:album" {
-                        new_album = metadata_iter.next().unwrap().as_str().unwrap_or("").to_string();
+                        album = metadata_iter.next().unwrap().as_str().unwrap_or("").to_string();
                     }
                 }
             }
-            output(&new_playback_status, new_title, new_artist,new_album);
+            output(&playback_status, &title, &artist, &album);
             #[cfg(feature = "timing")] {
                 let long_time_no_see = wake_time.elapsed().unwrap();
                 println!("time from wake to print: {}", long_time_no_see.as_micros());
