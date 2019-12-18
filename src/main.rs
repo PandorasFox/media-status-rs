@@ -34,12 +34,17 @@ impl dbus::message::SignalArgs for OrgFreedesktopDBusPropertiesPropertiesChanged
 /* end generated code */
 
 #[inline]
-fn output(playback_status: &String, title: String, artist: String) {
-    // TODO: total string length?
+fn output(playback_status: &String, title: String, artist: String, album: String) {
+    // see https://github.com/rust-lang/rust/issues/46016 for why there's a single panic in main
+    // when running in waybar (you can see if you launch waybar in your term)
+    // outputting for waybar. sorry folks.
+    // if spotify supported the Position prop, i'd also export a %. alas,
+    // tho it would probably cause a /lot/ of propertiesChanged pings
+    // or would be hard to handle well (sigh)
     if playback_status != "Playing" {
-        println!("  {} - {}", artist, title);
+        println!("{{\"text\": \"{} - {}\", \"tooltip\": \"{}\", \"class\": \"pause\"}}", artist, title, album);
     } else {
-        println!("{} - {}", artist, title);
+        println!("{{\"text\": \"{} - {}\", \"tooltip\": \"{}\", \"class\": \"play\"}}", artist, title, album);
     }
 }
 
@@ -91,11 +96,12 @@ fn main() ->  Result<(), Box<dyn Error>> {
     // xesam:artist is always a list of artists. we only care about the first one.
     let artist: Option<String> = uber_unwrap(metadata.get("xesam:artist"));
     // maybe feature-enable album stuff?
-    // let album: Option<String> = uber_unwrap(metadata.get("xesam:album"));
+    let album: Option<String> = uber_unwrap(metadata.get("xesam:album"));
     
     output(&playback_status,
            title.unwrap(),
-           artist.unwrap()
+           artist.unwrap(),
+           album.unwrap()
     );
     
     #[cfg(feature = "timing")] {
@@ -117,6 +123,7 @@ fn main() ->  Result<(), Box<dyn Error>> {
             let mut new_playback_status: String = "".to_string();
             let mut new_title: String = "".to_string();
             let mut new_artist: String = "".to_string();
+            let mut new_album: String = "".to_string();
             if maybe_playback_status.is_some() {
                 // yolo unwrap, wouldn't be in the dict otherwise
                 new_playback_status = uber_unwrap(maybe_playback_status).unwrap();
@@ -137,10 +144,12 @@ fn main() ->  Result<(), Box<dyn Error>> {
                         new_artist = artist_value_arr_iter.next().unwrap().as_str().unwrap_or("").to_string();
                     } else if key.as_str().unwrap_or("") == "xesam:title" {
                         new_title = metadata_iter.next().unwrap().as_str().unwrap_or("").to_string();
+                    } else if key.as_str().unwrap_or("") == "xesam:album" {
+                        new_album = metadata_iter.next().unwrap().as_str().unwrap_or("").to_string();
                     }
                 }
             }
-            output(&new_playback_status, new_title, new_artist,);
+            output(&new_playback_status, new_title, new_artist,new_album);
             #[cfg(feature = "timing")] {
                 let long_time_no_see = wake_time.elapsed().unwrap();
                 println!("time from wake to print: {}", long_time_no_see.as_micros());
